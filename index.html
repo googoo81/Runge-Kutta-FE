@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Runge-Kutta 방법 시각화</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        padding: 30px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+      }
+
+      h1 {
+        color: #333;
+        text-align: center;
+        margin-bottom: 30px;
+        font-size: 2.5em;
+      }
+
+      .controls {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 20px;
+        margin-bottom: 30px;
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 15px;
+      }
+
+      .control-group {
+        display: flex;
+        flex-direction: column;
+      }
+
+      label {
+        font-weight: bold;
+        margin-bottom: 5px;
+        color: #555;
+      }
+
+      input,
+      select {
+        padding: 10px;
+        border: 2px solid #ddd;
+        border-radius: 8px;
+        font-size: 16px;
+        transition: border-color 0.3s;
+      }
+
+      input:focus,
+      select:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      button {
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-size: 16px;
+        cursor: pointer;
+        transition: transform 0.2s;
+      }
+
+      button:hover {
+        transform: translateY(-2px);
+      }
+
+      .chart-container {
+        position: relative;
+        height: 500px;
+        margin-bottom: 30px;
+        background: white;
+        border-radius: 10px;
+        padding: 20px;
+      }
+
+      .results {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 10px;
+        margin-top: 20px;
+      }
+
+      .equation-display {
+        background: #e9ecef;
+        padding: 15px;
+        border-radius: 8px;
+        font-family: "Courier New", monospace;
+        margin-bottom: 20px;
+        text-align: center;
+        font-size: 18px;
+      }
+
+      .spring-animation {
+        position: relative;
+        height: 200px;
+        background: linear-gradient(to right, #fff, #f0f0f0);
+        border-radius: 10px;
+        margin: 20px 0;
+        overflow: hidden;
+      }
+
+      .mass {
+        position: absolute;
+        width: 40px;
+        height: 40px;
+        background: #ff6b6b;
+        border-radius: 50%;
+        top: 50%;
+        transform: translateY(-50%);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        transition: left 0.1s linear;
+      }
+
+      .spring {
+        position: absolute;
+        height: 4px;
+        background: #333;
+        top: 50%;
+        transform: translateY(-50%);
+        border-radius: 2px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🌸 Runge-Kutta 방법을 활용한 스프링 시뮬레이션</h1>
+
+      <div class="equation-display">
+        현재 방정식: y'' + 2γy' + ω²y = 0 (감쇠 조화 진동자)
+      </div>
+
+      <div class="controls">
+        <div class="control-group">
+          <label for="omega">각진동수 (ω):</label>
+          <input type="number" id="omega" value="2" step="0.1" min="0.1" />
+        </div>
+
+        <div class="control-group">
+          <label for="gamma">감쇠계수 (γ):</label>
+          <input type="number" id="gamma" value="0.1" step="0.01" min="0" />
+        </div>
+
+        <div class="control-group">
+          <label for="initial_pos">초기 위치:</label>
+          <input type="number" id="initial_pos" value="1" step="0.1" />
+        </div>
+
+        <div class="control-group">
+          <label for="initial_vel">초기 속도:</label>
+          <input type="number" id="initial_vel" value="0" step="0.1" />
+        </div>
+
+        <div class="control-group">
+          <label for="time_end">시뮬레이션 시간:</label>
+          <input type="number" id="time_end" value="10" step="0.5" min="1" />
+        </div>
+
+        <div class="control-group">
+          <label for="step_size">스텝 크기:</label>
+          <input
+            type="number"
+            id="step_size"
+            value="0.01"
+            step="0.001"
+            min="0.001"
+          />
+        </div>
+
+        <div class="control-group">
+          <button onclick="runSimulation()">시뮬레이션 실행</button>
+        </div>
+
+        <div class="control-group">
+          <button onclick="startAnimation()">실시간 애니메이션</button>
+        </div>
+      </div>
+
+      <div class="spring-animation" id="springAnimation">
+        <div class="spring" id="spring"></div>
+        <div class="mass" id="mass"></div>
+      </div>
+
+      <div class="chart-container">
+        <canvas id="chart"></canvas>
+      </div>
+
+      <div class="results" id="results">
+        <h3>시뮬레이션 결과</h3>
+        <p>Runge-Kutta 4차 방법을 사용하여 감쇠 조화 진동자를 해석합니다.</p>
+      </div>
+    </div>
+
+    <script>
+      // Runge-Kutta 4차 방법 구현
+      class RungeKuttaSolver {
+        constructor(omega, gamma) {
+          this.omega = omega;
+          this.gamma = gamma;
+        }
+
+        // 미분방정식 시스템: y'' + 2γy' + ω²y = 0
+        // y1 = y, y2 = y' 로 변환
+        // y1' = y2
+        // y2' = -2γy2 - ω²y1
+        derivatives(t, y1, y2) {
+          const dy1dt = y2;
+          const dy2dt = -2 * this.gamma * y2 - this.omega * this.omega * y1;
+          return [dy1dt, dy2dt];
+        }
+
+        step(t, y1, y2, dt) {
+          // k1
+          const [k1_y1, k1_y2] = this.derivatives(t, y1, y2);
+
+          // k2
+          const [k2_y1, k2_y2] = this.derivatives(
+            t + dt / 2,
+            y1 + (k1_y1 * dt) / 2,
+            y2 + (k1_y2 * dt) / 2
+          );
+
+          // k3
+          const [k3_y1, k3_y2] = this.derivatives(
+            t + dt / 2,
+            y1 + (k2_y1 * dt) / 2,
+            y2 + (k2_y2 * dt) / 2
+          );
+
+          // k4
+          const [k4_y1, k4_y2] = this.derivatives(
+            t + dt,
+            y1 + k3_y1 * dt,
+            y2 + k3_y2 * dt
+          );
+
+          // 최종 계산
+          const new_y1 =
+            y1 + (dt / 6) * (k1_y1 + 2 * k2_y1 + 2 * k3_y1 + k4_y1);
+          const new_y2 =
+            y2 + (dt / 6) * (k1_y2 + 2 * k2_y2 + 2 * k3_y2 + k4_y2);
+
+          return [new_y1, new_y2];
+        }
+
+        solve(y1_0, y2_0, t_end, dt) {
+          const results = {
+            time: [0],
+            position: [y1_0],
+            velocity: [y2_0],
+          };
+
+          let t = 0;
+          let y1 = y1_0;
+          let y2 = y2_0;
+
+          while (t < t_end) {
+            [y1, y2] = this.step(t, y1, y2, dt);
+            t += dt;
+
+            results.time.push(t);
+            results.position.push(y1);
+            results.velocity.push(y2);
+          }
+
+          return results;
+        }
+      }
+
+      let chart = null;
+      let animationId = null;
+      let simulationData = null;
+
+      function runSimulation() {
+        const omega = parseFloat(document.getElementById("omega").value);
+        const gamma = parseFloat(document.getElementById("gamma").value);
+        const initialPos = parseFloat(
+          document.getElementById("initial_pos").value
+        );
+        const initialVel = parseFloat(
+          document.getElementById("initial_vel").value
+        );
+        const timeEnd = parseFloat(document.getElementById("time_end").value);
+        const stepSize = parseFloat(document.getElementById("step_size").value);
+
+        const solver = new RungeKuttaSolver(omega, gamma);
+        simulationData = solver.solve(
+          initialPos,
+          initialVel,
+          timeEnd,
+          stepSize
+        );
+
+        updateChart();
+        updateResults();
+      }
+
+      function updateChart() {
+        const ctx = document.getElementById("chart").getContext("2d");
+
+        if (chart) {
+          chart.destroy();
+        }
+
+        chart = new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: simulationData.time,
+            datasets: [
+              {
+                label: "위치 (Position)",
+                data: simulationData.position,
+                borderColor: "rgb(255, 99, 132)",
+                backgroundColor: "rgba(255, 99, 132, 0.1)",
+                tension: 0.4,
+                fill: false,
+              },
+              {
+                label: "속도 (Velocity)",
+                data: simulationData.velocity,
+                borderColor: "rgb(54, 162, 235)",
+                backgroundColor: "rgba(54, 162, 235, 0.1)",
+                tension: 0.4,
+                fill: false,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+              x: {
+                title: {
+                  display: true,
+                  text: "시간 (초)",
+                },
+              },
+              y: {
+                title: {
+                  display: true,
+                  text: "값",
+                },
+              },
+            },
+            plugins: {
+              title: {
+                display: true,
+                text: "Runge-Kutta 방법으로 해석한 감쇠 조화 진동",
+              },
+            },
+          },
+        });
+      }
+
+      function updateResults() {
+        const maxPos = Math.max(...simulationData.position.map(Math.abs));
+        const finalPos =
+          simulationData.position[simulationData.position.length - 1];
+
+        document.getElementById("results").innerHTML = `
+                <h3>시뮬레이션 결과</h3>
+                <p><strong>최대 진폭:</strong> ${maxPos.toFixed(4)}</p>
+                <p><strong>최종 위치:</strong> ${finalPos.toFixed(4)}</p>
+                <p><strong>계산된 점의 수:</strong> ${
+                  simulationData.time.length
+                }</p>
+                <p><strong>사용된 방법:</strong> Runge-Kutta 4차 방법</p>
+                <p>이 시뮬레이션은 스프링-질량 시스템의 감쇠 진동을 모델링합니다.</p>
+            `;
+      }
+
+      function startAnimation() {
+        if (!simulationData) {
+          alert("먼저 시뮬레이션을 실행해주세요!");
+          return;
+        }
+
+        if (animationId) {
+          cancelAnimationFrame(animationId);
+        }
+
+        const mass = document.getElementById("mass");
+        const spring = document.getElementById("spring");
+        const container = document.getElementById("springAnimation");
+        const containerWidth = container.offsetWidth;
+
+        let frameIndex = 0;
+        const animationSpeed = 2; // 애니메이션 속도 조절
+
+        function animate() {
+          if (frameIndex >= simulationData.position.length) {
+            frameIndex = 0; // 반복
+          }
+
+          const position = simulationData.position[frameIndex];
+          const normalizedPos = (position + 2) / 4; // -2~2를 0~1로 정규화
+          const massX = Math.max(
+            20,
+            Math.min(
+              containerWidth - 60,
+              normalizedPos * (containerWidth - 80) + 20
+            )
+          );
+
+          mass.style.left = massX + "px";
+          spring.style.width = massX + "px";
+          spring.style.left = "0px";
+
+          frameIndex += animationSpeed;
+          animationId = requestAnimationFrame(animate);
+        }
+
+        animate();
+      }
+
+      // 초기 시뮬레이션 실행
+      runSimulation();
+    </script>
+  </body>
+</html>
